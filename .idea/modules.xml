@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/CourseMS.main.iml" filepath="$PROJECT_DIR$/.idea/modules/CourseMS.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/JVBE-MD3-CourseMS.iml" filepath="$PROJECT_DIR$/.idea/JVBE-MD3-CourseMS.iml" />
     </modules>
   </component>
