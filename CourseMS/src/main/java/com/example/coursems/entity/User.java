@@ -1,6 +1,5 @@
 package com.example.coursems.entity;
 
-
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -58,7 +57,7 @@ public class User implements UserDetails {
     @Column(name = "updated_at")
     private Date updatedAt;
 
-    //Override Auth
+    // Override Auth
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
@@ -66,7 +65,7 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return username; // Đã đổi từ email sang username field
+        return username;
     }
 
     @Override
@@ -89,11 +88,9 @@ public class User implements UserDetails {
         return true;
     }
 
-
     @Override
     public boolean isEnabled() {
         return isActive;
     }
-
 
 }
