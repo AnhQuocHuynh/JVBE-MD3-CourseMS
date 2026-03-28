@@ -1,7 +1,7 @@
-package config;
+package com.example.coursems.config;
 
 
-import config.security.JwtService;
+import com.example.coursems.config.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

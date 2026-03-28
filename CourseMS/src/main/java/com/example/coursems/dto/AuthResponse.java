@@ -1,4 +1,4 @@
-package dto;
+package com.example.coursems.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

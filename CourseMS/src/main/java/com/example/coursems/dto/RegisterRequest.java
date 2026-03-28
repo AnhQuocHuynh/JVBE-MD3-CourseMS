@@ -1,6 +1,6 @@
-package dto;
+package com.example.coursems.dto;
 
-import entity.Role;
+import com.example.coursems.entity.Role;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

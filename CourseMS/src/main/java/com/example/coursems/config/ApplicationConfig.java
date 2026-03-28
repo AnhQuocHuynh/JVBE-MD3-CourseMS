@@ -1,18 +1,17 @@
-package config;
+package com.example.coursems.config;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import repository.UserRepository;
+import com.example.coursems.repository.UserRepository;
 
 @Configuration
 @RequiredArgsConstructor
@@ -22,8 +21,8 @@ public class ApplicationConfig {
 
     @Bean
     public UserDetailsService userDetailsService() {
-        return username -> userRepository.findByEmail(username)
-                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy User với username: "+username));
+        return username -> userRepository.findByUsernameOrEmail(username, username)
+                .orElseThrow(() -> new UsernameNotFoundException("Không tìm thấy User với username hoặc email: " + username));
     }
 
     @Bean

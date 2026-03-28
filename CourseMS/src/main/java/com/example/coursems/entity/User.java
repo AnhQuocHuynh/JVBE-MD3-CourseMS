@@ -1,4 +1,4 @@
-package entity;
+package com.example.coursems.entity;
 
 
 import jakarta.persistence.*;
@@ -66,7 +66,7 @@ public class User implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return username; // Đã đổi từ email sang username field
     }
 
     @Override
