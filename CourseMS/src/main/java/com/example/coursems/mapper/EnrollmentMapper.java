@@ -18,6 +18,5 @@ public interface EnrollmentMapper {
 
     @Mapping(source = "lesson.lessonId", target = "lessonId")
     @Mapping(source = "lesson.title", target = "lessonTitle")
-    @Mapping(source = "completed", target = "isCompleted")
     LessonProgressResponse toProgressResponse(LessonProgress lessonProgress);
 }

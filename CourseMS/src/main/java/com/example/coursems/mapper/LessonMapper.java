@@ -8,6 +8,6 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface LessonMapper {
     @Mapping(source = "course.courseId", target = "courseId")
-    @Mapping(source = "published", target = "isPublished")
+    @Mapping(source = "published", target = "published")
     LessonResponse toResponse(Lesson lesson);
 }
