@@ -1,4 +1,4 @@
-package com.example.coursems.dto;
+package com.example.coursems.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class AuthRequest {
-    private String username;
-    private String password;
+public class AuthResponse {
+    private String token;
+    private String message;
 }

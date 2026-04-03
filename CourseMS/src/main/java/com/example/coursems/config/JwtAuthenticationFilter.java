@@ -1,7 +1,6 @@
 package com.example.coursems.config;
 
-
-import com.example.coursems.config.JwtService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,38 +19,41 @@ import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
-
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain) throws ServletException, IOException {
-        // ── BƯỚC 1: ĐỌC HEADER AUTHORIZATION
-        // request.getHeader("Authorization") = đọc giá trị của header "Authorization" từ request
+            @NonNull FilterChain filterChain
+    ) throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
-        // Nếu không có header Authorization HOẶC header không bắt đầu bằng "Bearer " →
-        // Không có token → Cho đi qua luôn, không check.
-        // Spring Security sẽ chặn lại ở tầng sau nếu endpoint đó yêu cầu phải đăng nhập.
+
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
-        // ── BƯỚC 2: CẮT LẤY CHUỖI TOKEN THUẦN
-        // .substring(7) = cắt 7 ký tự đầu ("Bearer " có 7 ký tự kể cả dấu cách) để lấy phần token
-        jwt = authHeader.substring(7);
-        // ── BƯỚC 3: TRÍCH XUẤT EMAIL TỪ TOKEN
-        // Gọi JwtService để giải mã token và lấy ra "subject" = email mà chúng ta đã nhét vào lúc tạo token
-        userEmail = jwtService.extractUsername(jwt);
-        // ── BƯỚC 4: XÁC THỰC VÀ ĐĂNG KÝ VÀO SECURITY CONTEXT
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+
+        final String jwt = authHeader.substring(7);
+        if (tokenBlacklistService.isBlacklisted(jwt)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        final String username;
+        try {
+            username = jwtService.extractUsername(jwt);
+        } catch (JwtException | IllegalArgumentException ex) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             if (jwtService.isTokenValid(jwt, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
@@ -62,7 +64,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             }
         }
-        // ── BƯỚC 5: CHO REQUEST ĐI TIẾP
+
         filterChain.doFilter(request, response);
     }
 }

@@ -1,6 +1,7 @@
 package com.example.coursems.service.impl;
 
 import com.example.coursems.config.exception.ResourceNotFoundException;
+import com.example.coursems.config.exception.ForbiddenException;
 import com.example.coursems.dto.request.CourseRequest;
 import com.example.coursems.dto.request.CourseStatusRequest;
 import com.example.coursems.dto.response.CourseResponse;
@@ -12,6 +13,7 @@ import com.example.coursems.mapper.CourseMapper;
 import com.example.coursems.repository.CourseRepository;
 import com.example.coursems.repository.UserRepository;
 import com.example.coursems.service.CourseService;
+import com.example.coursems.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +28,14 @@ public class CourseServiceImpl implements CourseService {
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
     private final CourseMapper courseMapper;
+    private final SecurityUtil securityUtil;
 
-    // Đánh dấu Transactional(readOnly = true) cho các hàm chỉ đọc
-    // Giúp Hibernate tối ưu hóa session, không lưu snapshot
     @Override
     @Transactional(readOnly = true)
     public List<CourseResponse> getAllCourses(String keyword, Integer teacherId, CourseStatus status) {
         List<Course> courses;
+        boolean admin = securityUtil.isAdmin();
 
-        // Xử lý logic query method cơ bản (Đối với hệ thống lớn hơn ta dùng Specification)
         if (teacherId != null && status != null) {
             courses = courseRepository.findByTeacher_UserIdAndStatus(teacherId, status);
         } else if (keyword != null && status != null) {
@@ -49,8 +50,8 @@ public class CourseServiceImpl implements CourseService {
             courses = courseRepository.findAll();
         }
 
-        // Dùng Stream API để lọc thêm nếu các query DB chưa cover hết logic lọc kết hợp
         return courses.stream()
+                .filter(c -> admin || c.getStatus() == CourseStatus.PUBLISHED || c.getTeacher().getUserId() == securityUtil.getCurrentUserId())
                 .filter(c -> keyword == null || c.getTitle().toLowerCase().contains(keyword.toLowerCase()))
                 .filter(c -> teacherId == null || c.getTeacher().getUserId() == teacherId)
                 .map(courseMapper::toResponse)
@@ -61,29 +62,22 @@ public class CourseServiceImpl implements CourseService {
     @Transactional(readOnly = true)
     public CourseResponse getCourseById(int courseId) {
         Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khóa học với ID: " + courseId));
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay khoa hoc voi ID: " + courseId));
+        if (!securityUtil.isAdmin()
+                && course.getStatus() != CourseStatus.PUBLISHED
+                && !securityUtil.isTeacherOfCourseOrAdmin(courseId)) {
+            throw new ForbiddenException("Ban khong duoc phep xem khoa hoc nay.");
+        }
         return courseMapper.toResponse(course);
     }
 
     @Override
     @Transactional
     public CourseResponse createCourse(CourseRequest request) {
-        // Kiểm tra xem User được gán có tồn tại và có Role TEACHER không
-        User teacher = userRepository.findById(request.getTeacherId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + request.getTeacherId()));
-
-        if (teacher.getRole() != Role.TEACHER) {
-            throw new IllegalArgumentException("Người dùng được chỉ định không phải là Giảng viên (TEACHER)!");
-        }
-
-        Course course = Course.builder()
-                .title(request.getTitle())
-                .description(request.getDescription())
-                .teacher(teacher)
-                .price(request.getPrice())
-                .durationHours(request.getDurationHours())
-                .status(CourseStatus.DRAFT) // Khóa học mới tạo mặc định là nháp
-                .build();
+        User teacher = getTeacherOrThrow(request.getTeacherId());
+        Course course = courseMapper.toEntity(request);
+        course.setTeacher(teacher);
+        course.setStatus(CourseStatus.DRAFT);
 
         Course savedCourse = courseRepository.save(course);
         return courseMapper.toResponse(savedCourse);
@@ -93,21 +87,11 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResponse updateCourse(int courseId, CourseRequest request) {
         Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khóa học với ID: " + courseId));
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay khoa hoc voi ID: " + courseId));
+        User teacher = getTeacherOrThrow(request.getTeacherId());
 
-        User teacher = userRepository.findById(request.getTeacherId())
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy người dùng với ID: " + request.getTeacherId()));
-
-        if (teacher.getRole() != Role.TEACHER) {
-            throw new IllegalArgumentException("Người dùng được chỉ định không phải là Giảng viên (TEACHER)!");
-        }
-
-        // Cập nhật thông tin
-        course.setTitle(request.getTitle());
-        course.setDescription(request.getDescription());
+        courseMapper.updateEntity(request, course);
         course.setTeacher(teacher);
-        course.setPrice(request.getPrice());
-        course.setDurationHours(request.getDurationHours());
 
         Course updatedCourse = courseRepository.save(course);
         return courseMapper.toResponse(updatedCourse);
@@ -117,8 +101,7 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public CourseResponse updateStatus(int courseId, CourseStatusRequest request) {
         Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khóa học với ID: " + courseId));
-
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay khoa hoc voi ID: " + courseId));
         course.setStatus(request.getStatus());
 
         Course updatedCourse = courseRepository.save(course);
@@ -129,9 +112,17 @@ public class CourseServiceImpl implements CourseService {
     @Transactional
     public void deleteCourse(int courseId) {
         Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khóa học với ID: " + courseId));
-        
-        // Nhờ CascadeType.ALL ở Entity, thao tác này sẽ tự xóa lessons và enrollments liên quan
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay khoa hoc voi ID: " + courseId));
         courseRepository.delete(course);
+    }
+
+    private User getTeacherOrThrow(Integer teacherId) {
+        User teacher = userRepository.findById(teacherId)
+                .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay nguoi dung voi ID: " + teacherId));
+
+        if (teacher.getRole() != Role.TEACHER) {
+            throw new IllegalArgumentException("Nguoi dung duoc chi dinh khong phai la giang vien (TEACHER).");
+        }
+        return teacher;
     }
 }

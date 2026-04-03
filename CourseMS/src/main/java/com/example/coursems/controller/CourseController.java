@@ -4,112 +4,106 @@ import com.example.coursems.dto.request.CourseRequest;
 import com.example.coursems.dto.request.CourseStatusRequest;
 import com.example.coursems.dto.response.ApiResponse;
 import com.example.coursems.dto.response.CourseResponse;
+import com.example.coursems.dto.response.PaginatedData;
 import com.example.coursems.entity.CourseStatus;
 import com.example.coursems.service.CourseService;
-import lombok.RequiredArgsConstructor;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Collections;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/courses")
-// Đây là kỹ thuật Field Injection hiện đại nhất:
-// Dùng @RequiredArgsConstructor thay cho @Autowired dư thừa
 @RequiredArgsConstructor
+@Validated
 public class CourseController {
 
     private final CourseService courseService;
 
-    /**
-     * Lấy danh sách khóa học, ai cũng xem được miễn là đã đăng nhập (Quyền: AUTH)
-     * Thường dành cho trang chủ tìm kiếm. Admin cũng dùng cái này nhưng không lọc status.
-     */
     @GetMapping
-    public ApiResponse<List<CourseResponse>> getAllCourses(
-            @RequestParam(required = false) String search,
-            @RequestParam(required = false) Integer teacher_id,
-            @RequestParam(required = false) CourseStatus status) {
+    public ApiResponse<PaginatedData<CourseResponse>> getAllCourses(
+            @RequestParam(required = false) @Size(max = 255, message = "Tu khoa tim kiem khong duoc qua 255 ky tu") String search,
+            @RequestParam(required = false) @Positive(message = "teacher_id phai lon hon 0") Integer teacher_id,
+            @RequestParam(required = false) CourseStatus status,
+            @RequestParam(defaultValue = "1") @Positive(message = "page phai lon hon 0") int page,
+            @RequestParam(defaultValue = "10") @Positive(message = "size phai lon hon 0") int size) {
+        List<CourseResponse> allItems = courseService.getAllCourses(search, teacher_id, status);
+        int safePage = Math.max(page, 1);
+        int safeSize = Math.max(size, 1);
+        int fromIndex = Math.min((safePage - 1) * safeSize, allItems.size());
+        int toIndex = Math.min(fromIndex + safeSize, allItems.size());
+        List<CourseResponse> currentItems = fromIndex >= toIndex
+                ? Collections.emptyList()
+                : allItems.subList(fromIndex, toIndex);
 
-        return ApiResponse.<List<CourseResponse>>builder()
-                .success(true)
-                .message("Lấy danh sách khóa học thành công")
-                .data(courseService.getAllCourses(search, teacher_id, status))
-                .build();
+        return ApiResponse.successPage(
+                "Lay danh sach khoa hoc thanh cong",
+                currentItems,
+                safePage,
+                safeSize,
+                allItems.size()
+        );
     }
 
-    /**
-     * Xem chi tiết khóa học.
-     */
     @GetMapping("/{course_id}")
-    public ApiResponse<CourseResponse> getCourseById(@PathVariable int course_id) {
-        return ApiResponse.<CourseResponse>builder()
-                .success(true)
-                .message("Lấy thông tin chi tiết khóa học thành công")
-                .data(courseService.getCourseById(course_id))
-                .build();
+    public ApiResponse<CourseResponse> getCourseById(
+            @PathVariable @Positive(message = "course_id phai lon hon 0") int course_id) {
+        return ApiResponse.success(
+                "Lay thong tin chi tiet khoa hoc thanh cong",
+                courseService.getCourseById(course_id)
+        );
     }
 
-    /**
-     * Tạo khóa học mới.
-     * @PreAuthorize("hasRole('ADMIN')") - Biện pháp bảo vệ vòng ngoài.
-     * Filter JWT là trạm gác đầu tiên, @PreAuthorize là cánh cửa thép riêng của hàm này.
-     */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<CourseResponse> createCourse(@Valid @RequestBody CourseRequest request) {
-        return ApiResponse.<CourseResponse>builder()
-                .success(true)
-                .message("Tạo khóa học thành công")
-                .data(courseService.createCourse(request))
-                .build();
+        return ApiResponse.success("Tao khoa hoc thanh cong", courseService.createCourse(request));
     }
 
-    /**
-     * Cập nhật toàn bộ thông tin khóa học (Quyền: ADMIN).
-     */
     @PutMapping("/{course_id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<CourseResponse> updateCourse(
-            @PathVariable int course_id, 
+            @PathVariable @Positive(message = "course_id phai lon hon 0") int course_id,
             @Valid @RequestBody CourseRequest request) {
-                
-        return ApiResponse.<CourseResponse>builder()
-                .success(true)
-                .message("Cập nhật thông tin khóa học thành công")
-                .data(courseService.updateCourse(course_id, request))
-                .build();
+        return ApiResponse.success(
+                "Cap nhat thong tin khoa hoc thanh cong",
+                courseService.updateCourse(course_id, request)
+        );
     }
 
-    /**
-     * Thay đổi trạng thái khóa học (DRAFT, PUBLISHED, ARCHIVED). (Quyền: ADMIN)
-     */
     @PutMapping("/{course_id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<CourseResponse> updateCourseStatus(
-            @PathVariable int course_id, 
-            @RequestBody CourseStatusRequest request) {
-                
-        return ApiResponse.<CourseResponse>builder()
-                .success(true)
-                .message("Cập nhật trạng thái khóa học thành công")
-                .data(courseService.updateStatus(course_id, request))
-                .build();
+            @PathVariable @Positive(message = "course_id phai lon hon 0") int course_id,
+            @Valid @RequestBody CourseStatusRequest request) {
+        return ApiResponse.success(
+                "Cap nhat trang thai khoa hoc thanh cong",
+                courseService.updateStatus(course_id, request)
+        );
     }
 
-    /**
-     * Xóa hoàn toàn một khóa học. (Quyền: ADMIN)
-     */
     @DeleteMapping("/{course_id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> deleteCourse(@PathVariable int course_id) {
+    public ApiResponse<Void> deleteCourse(
+            @PathVariable @Positive(message = "course_id phai lon hon 0") int course_id) {
         courseService.deleteCourse(course_id);
-        return ApiResponse.<Void>builder()
-                .success(true)
-                .message("Xóa khóa học thành công")
-                .build();
+        return ApiResponse.success("Xoa khoa hoc thanh cong", null);
     }
 }
