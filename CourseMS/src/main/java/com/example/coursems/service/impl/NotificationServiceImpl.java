@@ -39,7 +39,7 @@ public class NotificationServiceImpl implements NotificationService {
         User user = securityUtil.getCurrentUser();
         Notification notification = notificationRepository.findById(notificationId)
                 .orElseThrow(() -> new ResourceNotFoundException("Khong tim thay thong bao voi ID: " + notificationId));
-        if (user == null || (!securityUtil.isAdmin() && notification.getUser().getUserId() != user.getUserId())) {
+        if (user == null || notification.getUser().getUserId() != user.getUserId()) {
             throw new ForbiddenException("Ban khong duoc phep cap nhat thong bao nay.");
         }
         notification.setRead(true);

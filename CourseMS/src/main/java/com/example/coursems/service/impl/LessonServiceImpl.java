@@ -43,7 +43,11 @@ public class LessonServiceImpl implements LessonService {
     @Transactional(readOnly = true)
     public LessonResponse getLessonById(int lessonId) {
         Lesson lesson = getLessonOrThrow(lessonId);
-        if (!lesson.isPublished() && !securityUtil.isTeacherOfCourseOrAdmin(lesson.getCourse().getCourseId())) {
+        boolean canManageCourse = securityUtil.isTeacherOfCourseOrAdmin(lesson.getCourse().getCourseId());
+        if (canManageCourse) {
+            return lessonMapper.toResponse(lesson);
+        }
+        if (lesson.getCourse().getStatus() != CourseStatus.PUBLISHED || !lesson.isPublished()) {
             throw new ForbiddenException("Ban khong duoc phep xem bai hoc nay.");
         }
         return lessonMapper.toResponse(lesson);
