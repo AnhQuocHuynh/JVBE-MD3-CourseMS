@@ -5,6 +5,7 @@ import com.example.coursems.config.exception.ForbiddenException;
 import com.example.coursems.dto.request.CourseRequest;
 import com.example.coursems.dto.request.CourseStatusRequest;
 import com.example.coursems.dto.response.CourseResponse;
+import com.example.coursems.dto.response.LessonResponse;
 import com.example.coursems.entity.Course;
 import com.example.coursems.entity.CourseStatus;
 import com.example.coursems.entity.Role;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,7 +56,7 @@ public class CourseServiceImpl implements CourseService {
                 .filter(c -> admin || c.getStatus() == CourseStatus.PUBLISHED || c.getTeacher().getUserId() == securityUtil.getCurrentUserId())
                 .filter(c -> keyword == null || c.getTitle().toLowerCase().contains(keyword.toLowerCase()))
                 .filter(c -> teacherId == null || c.getTeacher().getUserId() == teacherId)
-                .map(courseMapper::toResponse)
+                .map(this::toResponseByViewer)
                 .collect(Collectors.toList());
     }
 
@@ -68,7 +70,7 @@ public class CourseServiceImpl implements CourseService {
                 && !securityUtil.isTeacherOfCourseOrAdmin(courseId)) {
             throw new ForbiddenException("Ban khong duoc phep xem khoa hoc nay.");
         }
-        return courseMapper.toResponse(course);
+        return toResponseByViewer(course);
     }
 
     @Override
@@ -124,5 +126,21 @@ public class CourseServiceImpl implements CourseService {
             throw new IllegalArgumentException("Nguoi dung duoc chi dinh khong phai la giang vien (TEACHER).");
         }
         return teacher;
+    }
+
+    private CourseResponse toResponseByViewer(Course course) {
+        CourseResponse response = courseMapper.toResponse(course);
+        if (response.getLessons() == null) {
+            return response;
+        }
+        boolean canViewAllLessons = securityUtil.isAdmin() || course.getTeacher().getUserId() == securityUtil.getCurrentUserId();
+        if (!canViewAllLessons) {
+            List<LessonResponse> visibleLessons = response.getLessons().stream()
+                    .filter(Objects::nonNull)
+                    .filter(LessonResponse::isPublished)
+                    .toList();
+            response.setLessons(visibleLessons);
+        }
+        return response;
     }
 }
